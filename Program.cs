@@ -58,8 +58,9 @@ builder.Services
     })
     .AddStandardResilienceHandler(options =>
     {
-        options.Retry.DisableForUnsafeHttpMethods();
         options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(8);
+        options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(4);
+        options.Retry.DisableForUnsafeHttpMethods();
     });
 
 builder.Services
@@ -71,8 +72,9 @@ builder.Services
     })
     .AddStandardResilienceHandler(options =>
     {
-        options.Retry.DisableForUnsafeHttpMethods();
         options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(8);
+        options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(4);
+        options.Retry.DisableForUnsafeHttpMethods();
     });
 
 builder.Services.AddTransient<INotificationChannelSender>(provider => provider.GetRequiredService<EmailChannelSender>());
