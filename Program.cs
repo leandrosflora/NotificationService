@@ -42,7 +42,7 @@ builder.Services
     {
         options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(8);
         options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(4);
-        options.Retry.DisableForUnsafeHttpMethods();
+        //options.Retry.DisableForUnsafeHttpMethods();
         options.CircuitBreaker.FailureRatio = 0.5;
         options.CircuitBreaker.MinimumThroughput = 10;
         options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
@@ -60,7 +60,7 @@ builder.Services
     {
         options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(8);
         options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(4);
-        options.Retry.DisableForUnsafeHttpMethods();
+        //options.Retry.DisableForUnsafeHttpMethods();
     });
 
 builder.Services
@@ -74,7 +74,7 @@ builder.Services
     {
         options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(8);
         options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(4);
-        options.Retry.DisableForUnsafeHttpMethods();
+        //options.Retry.DisableForUnsafeHttpMethods();
     });
 
 builder.Services.AddTransient<INotificationChannelSender>(provider => provider.GetRequiredService<EmailChannelSender>());
