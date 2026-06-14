@@ -15,14 +15,20 @@ public sealed record OrderCreatedPayload(
 
 public sealed record ShipmentCreatedPayload(
     Guid ShipmentId,
+    Guid OrderId,
     Guid BuyerId,
     string? TrackingCode,
-    DateOnly? EstimatedDeliveryDate);
+    DateOnly? EstimatedDeliveryDate,
+    DateTimeOffset CreatedAt);
 
 public sealed record ShipmentStatusUpdatedPayload(
     Guid ShipmentId,
+    Guid OrderId,
     Guid BuyerId,
     string? TrackingCode,
+    string? CarrierCode,
+    string? PreviousStatus,
     string CurrentStatus,
+    DateTimeOffset StatusDate,
     DateOnly? EstimatedDeliveryDate,
     string? ExceptionCode);

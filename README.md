@@ -786,3 +786,132 @@ Para validar idempotência, publique novamente a mesma mensagem com o mesmo `eve
 - O consumer foi implementado para os eventos de entrada do escopo atual. A publicação real dos eventos da outbox permanece como próximo passo; o `OutboxDispatcher` ainda marca mensagens como processadas após logar que estão prontas para publicação.
 - Eventos com status de shipment não mapeado para política de notificação continuam sendo rejeitados pela regra existente do `NotificationPlanner`.
 - O serviço depende do schema PostgreSQL compatível com o `NotificationDbContext`; este repositório ainda não versiona migrations.
+
+## Eventos Kafka canônicos consumidos
+
+O `NotificationService` consome eventos Kafka canônicos usando o envelope padrão da arquitetura Meli Envios. O `eventId` do envelope é usado como chave de inbox para idempotência e o offset Kafka só deve ser confirmado após o processamento persistido. O `eventType` deve ser igual ao tópico consumido.
+
+Envelope comum:
+
+```json
+{
+  "eventId": "8b1b0b6e-87e8-4650-a11c-7a2720a6db21",
+  "eventType": "order.created",
+  "schemaVersion": "1.0",
+  "occurredAt": "2026-06-14T12:00:00Z",
+  "correlationId": "corr-123",
+  "producer": "order-service",
+  "payload": {}
+}
+```
+
+Campos extras no envelope ou no `payload` são tolerados e ignorados pela desserialização. O campo `buyerId` é obrigatório em todos os eventos consumidos porque identifica diretamente o destinatário da notificação; sem ele o serviço registra erro e não planeja a notificação.
+
+### `order.created`
+
+Planeja uma notificação de pedido confirmado para o comprador informado no próprio evento.
+
+Payload obrigatório:
+
+| Campo | Obrigatório | Uso |
+| --- | --- | --- |
+| `orderId` | Sim | Identifica o pedido confirmado. |
+| `buyerId` | Sim | Identifica o destinatário da notificação. |
+
+Exemplo:
+
+```json
+{
+  "eventId": "8b1b0b6e-87e8-4650-a11c-7a2720a6db21",
+  "eventType": "order.created",
+  "schemaVersion": "1.0",
+  "occurredAt": "2026-06-14T12:00:00Z",
+  "correlationId": "corr-123",
+  "producer": "order-service",
+  "payload": {
+    "orderId": "11111111-1111-1111-1111-111111111111",
+    "buyerId": "22222222-2222-2222-2222-222222222222",
+    "createdAt": "2026-06-14T12:00:00Z"
+  }
+}
+```
+
+### `shipment.created`
+
+Planeja uma notificação de entrega criada usando o comprador, a entrega, o código de rastreio e a data estimada enviados no evento.
+
+Payload obrigatório:
+
+| Campo | Obrigatório | Uso |
+| --- | --- | --- |
+| `shipmentId` | Sim | Identifica a entrega criada. |
+| `orderId` | Sim | Relaciona a entrega ao pedido. |
+| `buyerId` | Sim | Identifica o destinatário da notificação. |
+| `trackingCode` | Sim | Informa o código de rastreio ao comprador. |
+| `estimatedDeliveryDate` | Sim | Informa a data estimada de entrega no formato `yyyy-MM-dd`. |
+| `createdAt` | Sim | Informa quando a entrega foi criada. |
+
+Exemplo:
+
+```json
+{
+  "eventId": "9c2c0c7f-98f9-4761-b22d-8b3831b7ec32",
+  "eventType": "shipment.created",
+  "schemaVersion": "1.0",
+  "occurredAt": "2026-06-14T12:00:00Z",
+  "correlationId": "corr-456",
+  "producer": "shipping-service",
+  "payload": {
+    "shipmentId": "33333333-3333-3333-3333-333333333333",
+    "orderId": "11111111-1111-1111-1111-111111111111",
+    "buyerId": "22222222-2222-2222-2222-222222222222",
+    "trackingCode": "BR123456789",
+    "estimatedDeliveryDate": "2026-06-15",
+    "createdAt": "2026-06-14T12:00:00Z"
+  }
+}
+```
+
+### `shipment.status.updated`
+
+Planeja a notificação pelo `currentStatus` e usa `statusDate` como data canônica do status. Status conhecidos: `out_for_delivery`, `delivered` e `exception`.
+
+Payload obrigatório:
+
+| Campo | Obrigatório | Uso |
+| --- | --- | --- |
+| `shipmentId` | Sim | Identifica a entrega. |
+| `orderId` | Sim | Relaciona a entrega ao pedido. |
+| `buyerId` | Sim | Identifica o destinatário da notificação. |
+| `trackingCode` | Sim | Informa o código de rastreio. |
+| `carrierCode` | Sim | Identifica a transportadora. |
+| `previousStatus` | Sim | Status anterior da entrega. |
+| `currentStatus` | Sim | Define o tipo de notificação planejada. |
+| `statusDate` | Sim | Data/hora em que o status ocorreu. |
+| `estimatedDeliveryDate` | Sim | Data estimada de entrega no formato `yyyy-MM-dd`. |
+| `exceptionCode` | Não | Código de exceção quando aplicável; pode ser `null`. |
+
+Exemplo:
+
+```json
+{
+  "eventId": "ad3d1d80-a90a-4872-c33e-9c4942c8fd43",
+  "eventType": "shipment.status.updated",
+  "schemaVersion": "1.0",
+  "occurredAt": "2026-06-16T18:00:00Z",
+  "correlationId": "corr-789",
+  "producer": "shipping-service",
+  "payload": {
+    "shipmentId": "33333333-3333-3333-3333-333333333333",
+    "orderId": "11111111-1111-1111-1111-111111111111",
+    "buyerId": "22222222-2222-2222-2222-222222222222",
+    "trackingCode": "BR123456789",
+    "carrierCode": "carrier_1",
+    "previousStatus": "in_transit",
+    "currentStatus": "delivered",
+    "statusDate": "2026-06-16T18:00:00Z",
+    "estimatedDeliveryDate": "2026-06-16",
+    "exceptionCode": null
+  }
+}
+```
