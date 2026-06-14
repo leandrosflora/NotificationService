@@ -245,8 +245,30 @@ As configurações principais ficam em `appsettings.json`.
 | `Providers:Email:BaseUrl` | Sim | URL base do provider de e-mail. |
 | `Providers:Sms:BaseUrl` | Sim | URL base do provider de SMS. |
 | `Providers:Push:BaseUrl` | Sim | URL base do provider de push notification. |
+| `FeatureFlags:MockNotificationRepository` | Não | Quando `true`, troca o repository de dispatch por uma implementação mockada que não reivindica entregas no PostgreSQL. |
+| `Mocks:NotificationRepository:PendingDeliveryIds` | Não | Lista de IDs retornados pelo repository mockado em `ClaimPendingAsync`, respeitando o limite solicitado. |
 
 > Observação: se uma URL de provider não estiver configurada, a aplicação lança `InvalidOperationException` na inicialização do respectivo `HttpClient`.
+
+
+### Feature flag para repository mockado
+
+Enquanto a base de dados do microserviço não estiver modelada/provisionada, é possível habilitar a feature flag `FeatureFlags:MockNotificationRepository` para substituir a implementação de `INotificationRepository` usada pelo worker de dispatch.
+
+```json
+{
+  "FeatureFlags": {
+    "MockNotificationRepository": true
+  },
+  "Mocks": {
+    "NotificationRepository": {
+      "PendingDeliveryIds": []
+    }
+  }
+}
+```
+
+Com a lista vazia, o worker não reivindica entregas para processamento. Para testes locais específicos, preencha `Mocks:NotificationRepository:PendingDeliveryIds` com GUIDs de entregas que devem ser retornados por `ClaimPendingAsync`; a implementação mockada sempre respeita o `limit` informado pelo worker.
 
 ## Como executar localmente
 

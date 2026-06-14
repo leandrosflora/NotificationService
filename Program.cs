@@ -27,7 +27,17 @@ builder.Services.AddScoped<ProviderReceiptProcessor>();
 builder.Services.AddSingleton<NotificationPolicyCatalog>();
 builder.Services.AddSingleton<TemplateRenderer>();
 
-builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.Configure<MockNotificationRepositoryOptions>(
+    builder.Configuration.GetSection(MockNotificationRepositoryOptions.SectionName));
+
+if (builder.Configuration.GetValue<bool>("FeatureFlags:MockNotificationRepository"))
+{
+    builder.Services.AddScoped<INotificationRepository, MockNotificationRepository>();
+}
+else
+{
+    builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+}
 builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
 
 builder.Services
