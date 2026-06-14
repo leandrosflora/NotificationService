@@ -6,6 +6,7 @@ using NotificationService.Application;
 using NotificationService.Application.Ports;
 using NotificationService.Infrastructure.Outbox;
 using NotificationService.Infrastructure.Persistence;
+using NotificationService.Infrastructure.Messaging;
 using NotificationService.Infrastructure.Workers;
 using NotificationService.Providers;
 
@@ -29,6 +30,8 @@ builder.Services.AddSingleton<TemplateRenderer>();
 
 builder.Services.Configure<MockNotificationRepositoryOptions>(
     builder.Configuration.GetSection(MockNotificationRepositoryOptions.SectionName));
+builder.Services.Configure<KafkaOptions>(
+    builder.Configuration.GetSection(KafkaOptions.SectionName));
 
 if (builder.Configuration.GetValue<bool>("FeatureFlags:MockNotificationRepository"))
 {
@@ -95,6 +98,7 @@ builder.Services.AddScoped<NotificationSenderFactory>();
 
 builder.Services.AddHostedService<NotificationDispatchWorker>();
 builder.Services.AddHostedService<OutboxDispatcher>();
+builder.Services.AddHostedService<KafkaNotificationConsumer>();
 
 builder.Services.AddHealthChecks()
     .AddCheck("live", () => HealthCheckResult.Healthy(), tags: ["live"])

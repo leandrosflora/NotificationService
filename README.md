@@ -686,3 +686,103 @@ O serviço registra logs para:
 - Atualizar `NotificationService.http` com exemplos reais dos endpoints atuais.
 - Adicionar métricas para latência, taxa de sucesso, retries, bounces e backlog de outbox/deliveries.
 - Avaliar mascaramento adicional/criptografia para destinos sensíveis em repouso.
+
+## Integração Kafka local
+
+O serviço agora possui consumers Kafka reais para teste end-to-end local da solução Meli Envios, mantendo o `MockNotificationRepository` disponível para cenários de desenvolvimento em que o dispatch de entregas não deve buscar registros no PostgreSQL.
+
+### Configuração Kafka
+
+As configurações ficam na seção `Kafka` de `appsettings.json` e `appsettings.Development.json`:
+
+```json
+{
+  "Kafka": {
+    "BootstrapServers": "localhost:9092",
+    "ConsumerGroupId": "notification-service",
+    "Topics": {
+      "OrderCreated": "order.created",
+      "ShipmentCreated": "shipment.created",
+      "ShipmentStatusUpdated": "shipment.status.updated"
+    }
+  }
+}
+```
+
+> Importante: para microservices executando fora do Docker, use sempre `localhost:9092` como broker Kafka. O Kafka UI em `http://localhost:8088` é apenas interface visual e não deve ser configurado como broker.
+
+### Eventos consumidos
+
+O `NotificationService` consome apenas os tópicos canônicos abaixo, conforme o contrato de eventos da arquitetura Meli Envios:
+
+| Tópico | Evento | Efeito no serviço |
+| --- | --- | --- |
+| `order.created` | `order.created` | Planeja notificação do tipo `OrderConfirmed`. |
+| `shipment.created` | `shipment.created` | Planeja notificação do tipo `ShipmentCreated`. |
+| `shipment.status.updated` | `shipment.status.updated` | Planeja notificação de rastreamento conforme o status (`OutForDelivery`, `Delivered` ou `Exception`). |
+
+Todos os eventos devem usar o envelope padrão:
+
+```json
+{
+  "eventId": "00000000-0000-0000-0000-000000000001",
+  "eventType": "shipment.status.updated",
+  "schemaVersion": "1.0",
+  "occurredAt": "2026-06-14T12:00:00Z",
+  "correlationId": "local-e2e-001",
+  "producer": "shipment-service",
+  "payload": {
+    "shipmentId": "00000000-0000-0000-0000-000000000010",
+    "buyerId": "00000000-0000-0000-0000-000000000020",
+    "trackingCode": "BR123456789",
+    "currentStatus": "OutForDelivery",
+    "estimatedDeliveryDate": "2026-06-15",
+    "exceptionCode": null
+  }
+}
+```
+
+### Como executar localmente com Kafka
+
+1. Suba a infraestrutura local pelo repositório de arquitetura, garantindo que o broker esteja publicado em `localhost:9092` e que o Kafka UI esteja em `http://localhost:8088`.
+2. Configure/provisione o PostgreSQL do serviço (`ConnectionStrings:NotificationDb`) e as tabelas mapeadas pelo `NotificationDbContext`.
+3. Restaure e compile o serviço:
+
+```bash
+dotnet restore
+dotnet build
+```
+
+4. Execute o serviço:
+
+```bash
+dotnet run
+```
+
+Ao iniciar, o log do consumer deve informar os tópicos assinados, o `ConsumerGroupId` e o `BootstrapServers` configurado.
+
+### Como publicar eventos de teste
+
+Com o broker local disponível, publique mensagens nos tópicos canônicos usando ferramentas como `kcat`, scripts próprios ou a aba de produção de mensagens do Kafka UI. Exemplo com `kcat`:
+
+```bash
+cat <<'JSON' | kcat -b localhost:9092 -t shipment.status.updated -P -K:
+00000000-0000-0000-0000-000000000001:{"eventId":"00000000-0000-0000-0000-000000000001","eventType":"shipment.status.updated","schemaVersion":"1.0","occurredAt":"2026-06-14T12:00:00Z","correlationId":"local-e2e-001","producer":"shipment-service","payload":{"shipmentId":"00000000-0000-0000-0000-000000000010","buyerId":"00000000-0000-0000-0000-000000000020","trackingCode":"BR123456789","currentStatus":"OutForDelivery","estimatedDeliveryDate":"2026-06-15","exceptionCode":null}}
+JSON
+```
+
+Para validar idempotência, publique novamente a mesma mensagem com o mesmo `eventId` e a mesma key. A tabela `inbox_messages` e o índice único de `notifications.source_event_id` impedem que a mesma notificação seja planejada duas vezes.
+
+### Como validar no Kafka UI
+
+1. Acesse `http://localhost:8088`.
+2. Abra os tópicos `order.created`, `shipment.created` ou `shipment.status.updated`.
+3. Confirme que a mensagem publicada possui key, envelope padrão e `correlationId`.
+4. Acompanhe os logs do serviço; cada consumo registra `topic`, `message key`, `eventType` e `correlationId`.
+5. Consulte o banco do `NotificationService` para confirmar registros em `inbox_messages`, `notifications` e, quando houver contato/template elegível, `notification_deliveries`.
+
+### Limitações e próximos passos da integração Kafka
+
+- O consumer foi implementado para os eventos de entrada do escopo atual. A publicação real dos eventos da outbox permanece como próximo passo; o `OutboxDispatcher` ainda marca mensagens como processadas após logar que estão prontas para publicação.
+- Eventos com status de shipment não mapeado para política de notificação continuam sendo rejeitados pela regra existente do `NotificationPlanner`.
+- O serviço depende do schema PostgreSQL compatível com o `NotificationDbContext`; este repositório ainda não versiona migrations.
