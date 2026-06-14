@@ -42,6 +42,7 @@ public sealed class NotificationPlanner
             templateValues: new Dictionary<string, string>
             {
                 ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
                 ["occurredAt"] = integrationEvent.OccurredAt.ToString("O")
             },
             cancellationToken: cancellationToken);
@@ -57,8 +58,11 @@ public sealed class NotificationPlanner
             templateValues: new Dictionary<string, string>
             {
                 ["shipmentId"] = integrationEvent.Payload.ShipmentId.ToString(),
+                ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
                 ["trackingCode"] = integrationEvent.Payload.TrackingCode ?? string.Empty,
-                ["estimatedDeliveryDate"] = integrationEvent.Payload.EstimatedDeliveryDate?.ToString("dd/MM/yyyy") ?? "não informada"
+                ["estimatedDeliveryDate"] = integrationEvent.Payload.EstimatedDeliveryDate?.ToString("dd/MM/yyyy") ?? "não informada",
+                ["createdAt"] = integrationEvent.Payload.CreatedAt.ToString("O")
             },
             cancellationToken: cancellationToken);
     }
@@ -75,8 +79,14 @@ public sealed class NotificationPlanner
             templateValues: new Dictionary<string, string>
             {
                 ["shipmentId"] = integrationEvent.Payload.ShipmentId.ToString(),
+                ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
                 ["trackingCode"] = integrationEvent.Payload.TrackingCode ?? string.Empty,
+                ["carrierCode"] = integrationEvent.Payload.CarrierCode ?? string.Empty,
+                ["previousStatus"] = integrationEvent.Payload.PreviousStatus ?? string.Empty,
                 ["status"] = integrationEvent.Payload.CurrentStatus,
+                ["currentStatus"] = integrationEvent.Payload.CurrentStatus,
+                ["statusDate"] = integrationEvent.Payload.StatusDate.ToString("O"),
                 ["estimatedDeliveryDate"] = integrationEvent.Payload.EstimatedDeliveryDate?.ToString("dd/MM/yyyy") ?? "não informada",
                 ["exceptionCode"] = integrationEvent.Payload.ExceptionCode ?? string.Empty
             },
@@ -177,9 +187,9 @@ public sealed class NotificationPlanner
     {
         return status switch
         {
-            "OutForDelivery" => NotificationType.OutForDelivery,
-            "Delivered" => NotificationType.Delivered,
-            "Exception" => NotificationType.DeliveryException,
+            "OutForDelivery" or "out_for_delivery" => NotificationType.OutForDelivery,
+            "Delivered" or "delivered" => NotificationType.Delivered,
+            "Exception" or "exception" => NotificationType.DeliveryException,
             _ => throw new InvalidOperationException($"No policy for status {status}")
         };
     }
