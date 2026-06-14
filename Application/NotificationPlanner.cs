@@ -19,25 +19,88 @@ public sealed class NotificationPlanner
         _renderer = renderer;
     }
 
-    public async Task HandleAsync(TrackingStatusChangedIntegrationEvent integrationEvent, CancellationToken cancellationToken)
+    public Task HandleAsync(TrackingStatusChangedIntegrationEvent integrationEvent, CancellationToken cancellationToken)
     {
-        if (await _dbContext.InboxMessages.AnyAsync(x => x.MessageId == integrationEvent.MessageId, cancellationToken))
+        var type = MapType(integrationEvent.CurrentStatus);
+
+        return PlanAsync(
+            sourceEventId: integrationEvent.MessageId,
+            messageType: nameof(TrackingStatusChangedIntegrationEvent),
+            recipientId: integrationEvent.BuyerId,
+            type: type,
+            templateValues: CreateTemplateValues(integrationEvent),
+            cancellationToken: cancellationToken);
+    }
+
+    public Task HandleAsync(KafkaEventEnvelope<OrderCreatedPayload> integrationEvent, CancellationToken cancellationToken)
+    {
+        return PlanAsync(
+            sourceEventId: integrationEvent.EventId,
+            messageType: integrationEvent.EventType,
+            recipientId: integrationEvent.Payload.BuyerId,
+            type: NotificationType.OrderConfirmed,
+            templateValues: new Dictionary<string, string>
+            {
+                ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["occurredAt"] = integrationEvent.OccurredAt.ToString("O")
+            },
+            cancellationToken: cancellationToken);
+    }
+
+    public Task HandleAsync(KafkaEventEnvelope<ShipmentCreatedPayload> integrationEvent, CancellationToken cancellationToken)
+    {
+        return PlanAsync(
+            sourceEventId: integrationEvent.EventId,
+            messageType: integrationEvent.EventType,
+            recipientId: integrationEvent.Payload.BuyerId,
+            type: NotificationType.ShipmentCreated,
+            templateValues: new Dictionary<string, string>
+            {
+                ["shipmentId"] = integrationEvent.Payload.ShipmentId.ToString(),
+                ["trackingCode"] = integrationEvent.Payload.TrackingCode ?? string.Empty,
+                ["estimatedDeliveryDate"] = integrationEvent.Payload.EstimatedDeliveryDate?.ToString("dd/MM/yyyy") ?? "não informada"
+            },
+            cancellationToken: cancellationToken);
+    }
+
+    public Task HandleAsync(KafkaEventEnvelope<ShipmentStatusUpdatedPayload> integrationEvent, CancellationToken cancellationToken)
+    {
+        var type = MapType(integrationEvent.Payload.CurrentStatus);
+
+        return PlanAsync(
+            sourceEventId: integrationEvent.EventId,
+            messageType: integrationEvent.EventType,
+            recipientId: integrationEvent.Payload.BuyerId,
+            type: type,
+            templateValues: new Dictionary<string, string>
+            {
+                ["shipmentId"] = integrationEvent.Payload.ShipmentId.ToString(),
+                ["trackingCode"] = integrationEvent.Payload.TrackingCode ?? string.Empty,
+                ["status"] = integrationEvent.Payload.CurrentStatus,
+                ["estimatedDeliveryDate"] = integrationEvent.Payload.EstimatedDeliveryDate?.ToString("dd/MM/yyyy") ?? "não informada",
+                ["exceptionCode"] = integrationEvent.Payload.ExceptionCode ?? string.Empty
+            },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task PlanAsync(Guid sourceEventId, string messageType, Guid recipientId, NotificationType type, IReadOnlyDictionary<string, string> templateValues, CancellationToken cancellationToken)
+    {
+        if (await _dbContext.InboxMessages.AnyAsync(x => x.MessageId == sourceEventId, cancellationToken))
         {
             return;
         }
 
-        var type = MapType(integrationEvent.CurrentStatus);
         var policy = _policyCatalog.Get(type);
 
         var contact = await _dbContext.RecipientContacts
             .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.RecipientId == integrationEvent.BuyerId, cancellationToken);
+            .SingleOrDefaultAsync(x => x.RecipientId == recipientId, cancellationToken);
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var notification = Notification.Create(
-            sourceEventId: integrationEvent.MessageId,
-            recipientId: integrationEvent.BuyerId,
+            sourceEventId: sourceEventId,
+            recipientId: recipientId,
             type: type,
             priority: policy.Priority,
             locale: contact?.Locale ?? "pt-BR");
@@ -46,15 +109,13 @@ public sealed class NotificationPlanner
         {
             var preferences = await _dbContext.NotificationPreferences
                 .AsNoTracking()
-                .Where(x => x.RecipientId == integrationEvent.BuyerId && x.NotificationType == type)
+                .Where(x => x.RecipientId == recipientId && x.NotificationType == type)
                 .ToListAsync(cancellationToken);
 
             var templates = await _dbContext.NotificationTemplates
                 .AsNoTracking()
                 .Where(x => x.Type == type && x.Locale == notification.Locale && x.IsActive)
                 .ToListAsync(cancellationToken);
-
-            var values = CreateTemplateValues(integrationEvent);
 
             foreach (var channel in policy.DefaultChannels)
             {
@@ -83,8 +144,8 @@ public sealed class NotificationPlanner
                     continue;
                 }
 
-                var subject = template.SubjectTemplate is null ? null : _renderer.Render(template.SubjectTemplate, values);
-                var body = _renderer.Render(template.BodyTemplate, values);
+                var subject = template.SubjectTemplate is null ? null : _renderer.Render(template.SubjectTemplate, templateValues);
+                var body = _renderer.Render(template.BodyTemplate, templateValues);
 
                 notification.AddDelivery(channel, destination, template.Id, template.Version, subject, body, DateTimeOffset.UtcNow);
             }
@@ -96,7 +157,7 @@ public sealed class NotificationPlanner
         }
 
         await _dbContext.Notifications.AddAsync(notification, cancellationToken);
-        await _dbContext.InboxMessages.AddAsync(new InboxMessage(integrationEvent.MessageId, nameof(TrackingStatusChangedIntegrationEvent)), cancellationToken);
+        await _dbContext.InboxMessages.AddAsync(new InboxMessage(sourceEventId, messageType), cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
