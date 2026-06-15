@@ -1,3 +1,4 @@
+using Xunit;
 using NotificationService.Application;
 
 namespace NotificationService.UnitTests;

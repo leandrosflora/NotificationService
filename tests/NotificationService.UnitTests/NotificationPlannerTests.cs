@@ -1,3 +1,4 @@
+using Xunit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using NotificationService.Application;
