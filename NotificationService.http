@@ -1,6 +1,24 @@
 @NotificationService_HostAddress = http://localhost:5206
+@notificationId = 00000000-0000-0000-0000-000000000001
+@correlationId = local-correlation-001
 
-GET {{NotificationService_HostAddress}}/weatherforecast/
+GET {{NotificationService_HostAddress}}/v1/notifications/{{notificationId}}
+X-Correlation-Id: {{correlationId}}
 Accept: application/json
 
 ###
+
+POST {{NotificationService_HostAddress}}/v1/notifications/tracking-status-changed
+X-Correlation-Id: {{correlationId}}
+Content-Type: application/json
+
+{
+  "messageId": "00000000-0000-0000-0000-000000000101",
+  "shipmentId": "00000000-0000-0000-0000-000000000201",
+  "buyerId": "00000000-0000-0000-0000-000000000301",
+  "trackingCode": "BR123456789",
+  "currentStatus": "delivered",
+  "occurredAt": "2026-06-16T18:00:00Z",
+  "estimatedDeliveryDate": "2026-06-16",
+  "exceptionCode": null
+}

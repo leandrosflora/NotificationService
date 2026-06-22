@@ -10,7 +10,7 @@ public static class NotificationEndpoints
 {
     public static IEndpointRouteBuilder MapNotificationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/notifications").WithTags("Notifications");
+        var group = app.MapGroup("/v1/notifications").WithTags("Notifications");
 
         group.MapGet("/{notificationId:guid}", async (Guid notificationId, NotificationDbContext dbContext, CancellationToken cancellationToken) =>
         {

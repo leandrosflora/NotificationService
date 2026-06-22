@@ -7,7 +7,7 @@ public static class ProviderCallbackEndpoints
 {
     public static IEndpointRouteBuilder MapProviderCallbackEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/providers").WithTags("Provider Callbacks");
+        var group = app.MapGroup("/v1/providers").WithTags("Provider Callbacks");
 
         group.MapPost("/{provider}/receipts", async (
             string provider,

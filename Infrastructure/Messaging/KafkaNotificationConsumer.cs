@@ -35,8 +35,12 @@ public sealed class KafkaNotificationConsumer : BackgroundService
         var topics = new[]
         {
             _options.Topics.OrderCreated,
+            _options.Topics.OrderConfirmed,
+            _options.Topics.OrderCancelled,
+            _options.Topics.PaymentRejected,
             _options.Topics.ShipmentCreated,
-            _options.Topics.ShipmentStatusUpdated
+            _options.Topics.ShipmentStatusUpdated,
+            _options.Topics.ShipmentCancelled
         }.Where(topic => !string.IsNullOrWhiteSpace(topic)).Distinct().ToArray();
 
         if (topics.Length == 0)
@@ -118,6 +122,36 @@ public sealed class KafkaNotificationConsumer : BackgroundService
             EnsureEventTypeMatchesTopic(result.Topic, eventType, correlationId);
             var envelope = DeserializeEnvelope<OrderCreatedPayload>(document.RootElement);
             ValidateBuyerId(envelope.Payload.BuyerId, envelope.EventId, envelope.EventType, correlationId);
+            ValidateSellerId(envelope.Payload.SellerId, envelope.EventId, envelope.EventType, correlationId);
+            await planner.HandleAsync(envelope, cancellationToken);
+            return;
+        }
+
+        if (result.Topic == _options.Topics.OrderConfirmed)
+        {
+            EnsureEventTypeMatchesTopic(result.Topic, eventType, correlationId);
+            var envelope = DeserializeEnvelope<OrderConfirmedPayload>(document.RootElement);
+            ValidateBuyerId(envelope.Payload.BuyerId, envelope.EventId, envelope.EventType, correlationId);
+            ValidateSellerId(envelope.Payload.SellerId, envelope.EventId, envelope.EventType, correlationId);
+            await planner.HandleAsync(envelope, cancellationToken);
+            return;
+        }
+
+        if (result.Topic == _options.Topics.OrderCancelled)
+        {
+            EnsureEventTypeMatchesTopic(result.Topic, eventType, correlationId);
+            var envelope = DeserializeEnvelope<OrderCancelledPayload>(document.RootElement);
+            ValidateBuyerId(envelope.Payload.BuyerId, envelope.EventId, envelope.EventType, correlationId);
+            ValidateSellerId(envelope.Payload.SellerId, envelope.EventId, envelope.EventType, correlationId);
+            await planner.HandleAsync(envelope, cancellationToken);
+            return;
+        }
+
+        if (result.Topic == _options.Topics.PaymentRejected)
+        {
+            EnsureEventTypeMatchesTopic(result.Topic, eventType, correlationId);
+            var envelope = DeserializeEnvelope<PaymentRejectedPayload>(document.RootElement);
+            ValidateBuyerId(envelope.Payload.BuyerId, envelope.EventId, envelope.EventType, correlationId);
             await planner.HandleAsync(envelope, cancellationToken);
             return;
         }
@@ -127,6 +161,7 @@ public sealed class KafkaNotificationConsumer : BackgroundService
             EnsureEventTypeMatchesTopic(result.Topic, eventType, correlationId);
             var envelope = DeserializeEnvelope<ShipmentCreatedPayload>(document.RootElement);
             ValidateBuyerId(envelope.Payload.BuyerId, envelope.EventId, envelope.EventType, correlationId);
+            ValidateSellerId(envelope.Payload.SellerId, envelope.EventId, envelope.EventType, correlationId);
             await planner.HandleAsync(envelope, cancellationToken);
             return;
         }
@@ -136,6 +171,16 @@ public sealed class KafkaNotificationConsumer : BackgroundService
             EnsureEventTypeMatchesTopic(result.Topic, eventType, correlationId);
             var envelope = DeserializeEnvelope<ShipmentStatusUpdatedPayload>(document.RootElement);
             ValidateBuyerId(envelope.Payload.BuyerId, envelope.EventId, envelope.EventType, correlationId);
+            await planner.HandleAsync(envelope, cancellationToken);
+            return;
+        }
+
+        if (result.Topic == _options.Topics.ShipmentCancelled)
+        {
+            EnsureEventTypeMatchesTopic(result.Topic, eventType, correlationId);
+            var envelope = DeserializeEnvelope<ShipmentCancelledPayload>(document.RootElement);
+            ValidateBuyerId(envelope.Payload.BuyerId, envelope.EventId, envelope.EventType, correlationId);
+            ValidateSellerId(envelope.Payload.SellerId, envelope.EventId, envelope.EventType, correlationId);
             await planner.HandleAsync(envelope, cancellationToken);
             return;
         }
@@ -173,6 +218,20 @@ public sealed class KafkaNotificationConsumer : BackgroundService
                 correlationId);
 
             throw new JsonException($"Kafka event '{eventId}' of type '{eventType}' is missing required buyerId");
+        }
+    }
+
+    private void ValidateSellerId(Guid sellerId, Guid eventId, string eventType, string correlationId)
+    {
+        if (sellerId == Guid.Empty)
+        {
+            _logger.LogError(
+                "Kafka event {EventId} ({EventType}) is missing required sellerId; NotificationService cannot plan seller notifications without sellerId. CorrelationId: {CorrelationId}",
+                eventId,
+                eventType,
+                correlationId);
+
+            throw new JsonException($"Kafka event '{eventId}' of type '{eventType}' is missing required sellerId");
         }
     }
 

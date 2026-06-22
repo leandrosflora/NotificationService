@@ -1,62 +1,62 @@
-## Contexto arquitetural obrigatÛrio
+Use o repositrio `https://github.com/leandrosflora/logistica-envios-demo-arch` como fonte de contexto arquitetural.
 
-Use o repositÛrio `https://github.com/leandrosflora/meli-envios-architecture` como fonte de contexto arquitetural.
+Este repositrio representa um microservice da arquitetura Log√≠stica Envios.
 
-Antes de alterar cÛdigo, contratos, eventos ou estrutura do serviÁo, consulte e respeite:
+4. No crie integrao HTTP/evento sem validar o contrato em `logistica-envios-demo-arch/docs/contracts`.
 
-- `AGENTS.md`
-- `docs/contracts`
+1. Verifique o contrato consolidado em `logistica-envios-demo-arch/docs/contracts/logistica-envios-apis.openapi.yaml`.
+Antes de publicar ou consumir eventos, verifique `logistica-envios-demo-arch/docs/contracts/kafka-events.md`.
 - `docs/adr`
 - `docs/c4`
 - `docs/sequence-diagrams`
 
-N„o invente dependÍncias, padrıes, integraÁıes, eventos ou contratos fora dos padrıes definidos no repositÛrio de arquitetura.
+N√£o invente depend√™ncias, padr√µes, integra√ß√µes, eventos ou contratos fora dos padr√µes definidos no reposit√≥rio de arquitetura.
 
 ## Responsabilidade deste microservice
 
-Este repositÛrio representa um microservice da arquitetura Meli Envios.
+Este reposit√≥rio representa um microservice da arquitetura Meli Envios.
 
-Ao implementar ou alterar cÛdigo:
+Ao implementar ou alterar c√≥digo:
 
-1. Mantenha o limite de responsabilidade do serviÁo.
-2. N„o mova regra de negÛcio para outro domÌnio indevidamente.
-3. N„o acesse banco de dados de outro microservice.
-4. N„o crie integraÁ„o HTTP/evento sem validar o contrato em `meli-envios-architecture/docs/contracts`.
-5. N„o altere eventos Kafka sem validar `docs/contracts/kafka-events.md`.
-6. N„o altere fluxos principais sem considerar os diagramas em `docs/sequence-diagrams`.
+1. Mantenha o limite de responsabilidade do servi√ßo.
+2. N√£o mova regra de neg√≥cio para outro dom√≠nio indevidamente.
+3. N√£o acesse banco de dados de outro microservice.
+4. N√£o crie integra√ß√£o HTTP/evento sem validar o contrato em `meli-envios-architecture/docs/contracts`.
+5. N√£o altere eventos Kafka sem validar `docs/contracts/kafka-events.md`.
+6. N√£o altere fluxos principais sem considerar os diagramas em `docs/sequence-diagrams`.
 
-## Padrıes tÈcnicos
+## Padr√µes t√©cnicos
 
-Use como padr„o:
+Use como padr√£o:
 
 - .NET 8
 - C#
-- ASP.NET Core Minimal APIs ou Controllers, conforme padr„o j· usado no repo
+- ASP.NET Core Minimal APIs ou Controllers, conforme padr√£o j√° usado no repo
 - Clean Architecture / Hexagonal Architecture
-- SeparaÁ„o clara entre `Api`, `Application`, `Domain`, `Infrastructure` e `Contracts`
-- DTOs explÌcitos para requests/responses
-- ValidaÁ„o de entrada
+- Separa√ß√£o clara entre `Api`, `Application`, `Domain`, `Infrastructure` e `Contracts`
+- DTOs expl√≠citos para requests/responses
+- Valida√ß√£o de entrada
 - Logs estruturados
 - `X-Correlation-Id`
-- `Idempotency-Key` em comandos crÌticos
-- Timeouts explÌcitos para chamadas HTTP
-- Retry apenas em operaÁıes idempotentes
-- Circuit breaker para chamadas downstream crÌticas
+- `Idempotency-Key` em comandos cr√≠ticos
+- Timeouts expl√≠citos para chamadas HTTP
+- Retry apenas em opera√ß√µes idempotentes
+- Circuit breaker para chamadas downstream cr√≠ticas
 
 ## Contratos HTTP
 
 Antes de criar ou alterar endpoints:
 
 1. Verifique o contrato consolidado em `meli-envios-architecture/docs/contracts/meli-envios-apis.openapi.yaml`.
-2. Se o endpoint j· existir no OpenAPI, implemente exatamente o request/response definido.
+2. Se o endpoint j√° existir no OpenAPI, implemente exatamente o request/response definido.
 3. Se precisar alterar o contrato, atualize primeiro o OpenAPI consolidado.
-4. Se este serviÁo consumir outro microservice, o contrato canÙnico È sempre o contrato do serviÁo dono da API.
+4. Se este servi√ßo consumir outro microservice, o contrato can√¥nico √© sempre o contrato do servi√ßo dono da API.
 
 ## Eventos Kafka
 
 Antes de publicar ou consumir eventos, verifique `meli-envios-architecture/docs/contracts/kafka-events.md`.
 
-Use envelope padr„o com:
+Use envelope padr√£o com:
 
 - `eventId`
 - `eventType`
@@ -66,11 +66,11 @@ Use envelope padr„o com:
 - `producer`
 - `payload`
 
-N„o crie tÛpico novo sem documentar no repositÛrio de arquitetura.
+N√£o crie t√≥pico novo sem documentar no reposit√≥rio de arquitetura.
 
-## Qualidade mÌnima
+## Qualidade m√≠nima
 
-Antes de considerar a alteraÁ„o concluÌda, execute:
+Antes de considerar a altera√ß√£o conclu√≠da, execute:
 
 ```bash
 dotnet restore
