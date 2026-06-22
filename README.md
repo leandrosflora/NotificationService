@@ -87,7 +87,7 @@ Background Workers
 
 ### 1. Entrada do evento de rastreamento
 
-O endpoint `POST /notifications/tracking-status-changed` recebe um `TrackingStatusChangedIntegrationEvent` e delega o processamento ao `NotificationPlanner`.
+O endpoint `POST /v1/notifications/tracking-status-changed` recebe um `TrackingStatusChangedIntegrationEvent` e delega o processamento ao `NotificationPlanner`.
 
 ### 2. Deduplicação por inbox
 
@@ -316,7 +316,7 @@ Em ambiente de desenvolvimento, a documentação Swagger fica disponível pelo m
 #### Consultar notificação
 
 ```http
-GET /notifications/{notificationId}
+GET /v1/notifications/{notificationId}
 ```
 
 Retorna a notificação, seus dados principais e entregas associadas. O destino é mascarado para reduzir exposição de dados sensíveis.
@@ -349,7 +349,7 @@ Exemplo de resposta:
 #### Receber evento de status de rastreamento
 
 ```http
-POST /notifications/tracking-status-changed
+POST /v1/notifications/tracking-status-changed
 Content-Type: application/json
 ```
 
@@ -379,7 +379,7 @@ Resposta esperada:
 #### Criar ou atualizar preferência
 
 ```http
-PUT /notification-preferences/{recipientId}/{type}/{channel}
+PUT /v1/notification-preferences/{recipientId}/{type}/{channel}
 Content-Type: application/json
 ```
 
@@ -410,7 +410,7 @@ Resposta esperada:
 #### Receber receipt de entrega
 
 ```http
-POST /providers/{provider}/receipts
+POST /v1/providers/{provider}/receipts
 Content-Type: application/json
 ```
 
@@ -470,6 +470,7 @@ Todos os eventos abaixo são gravados com tópico `notification.events` e `aggre
 ### Tipos de notificação
 
 ```text
+OrderCreated
 OrderConfirmed
 ShipmentCreated
 OutForDelivery
@@ -477,9 +478,10 @@ Delivered
 DeliveryException
 OrderCancelled
 PaymentFailed
+ShipmentCancelled
 ```
 
-> Nem todos os tipos possuem política cadastrada atualmente. O catálogo possui políticas para `OrderConfirmed`, `OutForDelivery`, `Delivered`, `DeliveryException`, `PaymentFailed` e `ShipmentCreated`.
+> O catálogo possui políticas para todos os tipos canônicos consumidos pelo serviço: `OrderCreated`, `OrderConfirmed`, `OrderCancelled`, `PaymentFailed`, `ShipmentCreated`, `OutForDelivery`, `Delivered`, `DeliveryException` e `ShipmentCancelled`.
 
 ### Canais
 
@@ -689,7 +691,7 @@ O serviço registra logs para:
 
 ## Integração Kafka local
 
-O serviço agora possui consumers Kafka reais para teste end-to-end local da solução Meli Envios, mantendo o `MockNotificationRepository` disponível para cenários de desenvolvimento em que o dispatch de entregas não deve buscar registros no PostgreSQL.
+O serviço agora possui consumers Kafka reais para teste end-to-end local da solução Logística Envios, mantendo o `MockNotificationRepository` disponível para cenários de desenvolvimento em que o dispatch de entregas não deve buscar registros no PostgreSQL.
 
 ### Configuração Kafka
 
@@ -702,8 +704,12 @@ As configurações ficam na seção `Kafka` de `appsettings.json` e `appsettings
     "ConsumerGroupId": "notification-service",
     "Topics": {
       "OrderCreated": "order.created",
+      "OrderConfirmed": "order.confirmed",
+      "OrderCancelled": "order.cancelled",
+      "PaymentRejected": "payment.rejected",
       "ShipmentCreated": "shipment.created",
-      "ShipmentStatusUpdated": "shipment.status.updated"
+      "ShipmentStatusUpdated": "shipment.status.updated",
+      "ShipmentCancelled": "shipment.cancelled"
     }
   }
 }
@@ -713,13 +719,17 @@ As configurações ficam na seção `Kafka` de `appsettings.json` e `appsettings
 
 ### Eventos consumidos
 
-O `NotificationService` consome apenas os tópicos canônicos abaixo, conforme o contrato de eventos da arquitetura Meli Envios:
+O `NotificationService` consome os tópicos canônicos abaixo, conforme o contrato de eventos da arquitetura Logística Envios:
 
 | Tópico | Evento | Efeito no serviço |
 | --- | --- | --- |
-| `order.created` | `order.created` | Planeja notificação do tipo `OrderConfirmed`. |
-| `shipment.created` | `shipment.created` | Planeja notificação do tipo `ShipmentCreated`. |
+| `order.created` | `order.created` | Planeja notificações para buyer e seller sobre a criação do pedido. |
+| `order.confirmed` | `order.confirmed` | Planeja notificações para buyer e seller sobre a confirmação do pedido. |
+| `order.cancelled` | `order.cancelled` | Planeja notificações para buyer e seller sobre o cancelamento do pedido. |
+| `payment.rejected` | `payment.rejected` | Planeja notificação para o buyer sobre falha de pagamento. |
+| `shipment.created` | `shipment.created` | Planeja notificação para o buyer sobre criação da entrega e código de rastreio. |
 | `shipment.status.updated` | `shipment.status.updated` | Planeja notificação de rastreamento conforme o status (`OutForDelivery`, `Delivered` ou `Exception`). |
+| `shipment.cancelled` | `shipment.cancelled` | Planeja notificações para buyer e seller sobre o cancelamento da entrega. |
 
 Todos os eventos devem usar o envelope padrão:
 
@@ -789,7 +799,7 @@ Para validar idempotência, publique novamente a mesma mensagem com o mesmo `eve
 
 ## Eventos Kafka canônicos consumidos
 
-O `NotificationService` consome eventos Kafka canônicos usando o envelope padrão da arquitetura Meli Envios. O `eventId` do envelope é usado como chave de inbox para idempotência e o offset Kafka só deve ser confirmado após o processamento persistido. O `eventType` deve ser igual ao tópico consumido.
+O `NotificationService` consome eventos Kafka canônicos usando o envelope padrão da arquitetura Logística Envios. O `eventId` do envelope é usado como chave de inbox para idempotência e o offset Kafka só deve ser confirmado após o processamento persistido. O `eventType` deve ser igual ao tópico consumido.
 
 Envelope comum:
 

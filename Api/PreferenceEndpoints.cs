@@ -9,7 +9,7 @@ public static class PreferenceEndpoints
 {
     public static IEndpointRouteBuilder MapPreferenceEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/notification-preferences").WithTags("Notification Preferences");
+        var group = app.MapGroup("/v1/notification-preferences").WithTags("Notification Preferences");
 
         group.MapPut("/{recipientId:guid}/{type}/{channel}", async (
             Guid recipientId,

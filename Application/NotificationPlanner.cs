@@ -26,7 +26,7 @@ public sealed class NotificationPlanner
         return PlanAsync(
             sourceEventId: integrationEvent.MessageId,
             messageType: nameof(TrackingStatusChangedIntegrationEvent),
-            recipientId: integrationEvent.BuyerId,
+            recipientIds: [integrationEvent.BuyerId],
             type: type,
             templateValues: CreateTemplateValues(integrationEvent),
             cancellationToken: cancellationToken);
@@ -37,13 +37,76 @@ public sealed class NotificationPlanner
         return PlanAsync(
             sourceEventId: integrationEvent.EventId,
             messageType: integrationEvent.EventType,
-            recipientId: integrationEvent.Payload.BuyerId,
+            recipientIds: DistinctRecipients(integrationEvent.Payload.BuyerId, integrationEvent.Payload.SellerId),
+            type: NotificationType.OrderCreated,
+            templateValues: new Dictionary<string, string>
+            {
+                ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["checkoutId"] = integrationEvent.Payload.CheckoutId.ToString(),
+                ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
+                ["sellerId"] = integrationEvent.Payload.SellerId.ToString(),
+                ["carrierCode"] = integrationEvent.Payload.CarrierCode,
+                ["serviceLevelCode"] = integrationEvent.Payload.ServiceLevelCode,
+                ["promisedDeliveryDate"] = integrationEvent.Payload.PromisedDeliveryDate.ToString("dd/MM/yyyy"),
+                ["totalAmount"] = integrationEvent.Payload.TotalAmount.ToString("F2"),
+                ["currency"] = integrationEvent.Payload.Currency,
+                ["createdAt"] = integrationEvent.Payload.CreatedAt.ToString("O"),
+                ["occurredAt"] = integrationEvent.OccurredAt.ToString("O")
+            },
+            cancellationToken: cancellationToken);
+    }
+
+    public Task HandleAsync(KafkaEventEnvelope<OrderConfirmedPayload> integrationEvent, CancellationToken cancellationToken)
+    {
+        return PlanAsync(
+            sourceEventId: integrationEvent.EventId,
+            messageType: integrationEvent.EventType,
+            recipientIds: DistinctRecipients(integrationEvent.Payload.BuyerId, integrationEvent.Payload.SellerId),
             type: NotificationType.OrderConfirmed,
             templateValues: new Dictionary<string, string>
             {
                 ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["checkoutId"] = integrationEvent.Payload.CheckoutId.ToString(),
                 ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
-                ["occurredAt"] = integrationEvent.OccurredAt.ToString("O")
+                ["sellerId"] = integrationEvent.Payload.SellerId.ToString(),
+                ["confirmedAt"] = integrationEvent.Payload.ConfirmedAt.ToString("O")
+            },
+            cancellationToken: cancellationToken);
+    }
+
+    public Task HandleAsync(KafkaEventEnvelope<OrderCancelledPayload> integrationEvent, CancellationToken cancellationToken)
+    {
+        return PlanAsync(
+            sourceEventId: integrationEvent.EventId,
+            messageType: integrationEvent.EventType,
+            recipientIds: DistinctRecipients(integrationEvent.Payload.BuyerId, integrationEvent.Payload.SellerId),
+            type: NotificationType.OrderCancelled,
+            templateValues: new Dictionary<string, string>
+            {
+                ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["checkoutId"] = integrationEvent.Payload.CheckoutId.ToString(),
+                ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
+                ["sellerId"] = integrationEvent.Payload.SellerId.ToString(),
+                ["cancellationReason"] = integrationEvent.Payload.CancellationReason,
+                ["cancelledAt"] = integrationEvent.Payload.CancelledAt.ToString("O")
+            },
+            cancellationToken: cancellationToken);
+    }
+
+    public Task HandleAsync(KafkaEventEnvelope<PaymentRejectedPayload> integrationEvent, CancellationToken cancellationToken)
+    {
+        return PlanAsync(
+            sourceEventId: integrationEvent.EventId,
+            messageType: integrationEvent.EventType,
+            recipientIds: [integrationEvent.Payload.BuyerId],
+            type: NotificationType.PaymentFailed,
+            templateValues: new Dictionary<string, string>
+            {
+                ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["paymentId"] = integrationEvent.Payload.PaymentId.ToString(),
+                ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
+                ["rejectionCode"] = integrationEvent.Payload.RejectionCode,
+                ["rejectedAt"] = integrationEvent.Payload.RejectedAt.ToString("O")
             },
             cancellationToken: cancellationToken);
     }
@@ -53,14 +116,19 @@ public sealed class NotificationPlanner
         return PlanAsync(
             sourceEventId: integrationEvent.EventId,
             messageType: integrationEvent.EventType,
-            recipientId: integrationEvent.Payload.BuyerId,
+            recipientIds: [integrationEvent.Payload.BuyerId],
             type: NotificationType.ShipmentCreated,
             templateValues: new Dictionary<string, string>
             {
                 ["shipmentId"] = integrationEvent.Payload.ShipmentId.ToString(),
                 ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
                 ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
-                ["trackingCode"] = integrationEvent.Payload.TrackingCode ?? string.Empty,
+                ["sellerId"] = integrationEvent.Payload.SellerId.ToString(),
+                ["carrierCode"] = integrationEvent.Payload.CarrierCode,
+                ["serviceLevelCode"] = integrationEvent.Payload.ServiceLevelCode,
+                ["externalShipmentId"] = integrationEvent.Payload.ExternalShipmentId,
+                ["trackingCode"] = integrationEvent.Payload.TrackingCode,
+                ["labelObjectKey"] = integrationEvent.Payload.LabelObjectKey,
                 ["estimatedDeliveryDate"] = integrationEvent.Payload.EstimatedDeliveryDate?.ToString("dd/MM/yyyy") ?? "não informada",
                 ["createdAt"] = integrationEvent.Payload.CreatedAt.ToString("O")
             },
@@ -74,7 +142,7 @@ public sealed class NotificationPlanner
         return PlanAsync(
             sourceEventId: integrationEvent.EventId,
             messageType: integrationEvent.EventType,
-            recipientId: integrationEvent.Payload.BuyerId,
+            recipientIds: [integrationEvent.Payload.BuyerId],
             type: type,
             templateValues: new Dictionary<string, string>
             {
@@ -93,7 +161,26 @@ public sealed class NotificationPlanner
             cancellationToken: cancellationToken);
     }
 
-    private async Task PlanAsync(Guid sourceEventId, string messageType, Guid recipientId, NotificationType type, IReadOnlyDictionary<string, string> templateValues, CancellationToken cancellationToken)
+    public Task HandleAsync(KafkaEventEnvelope<ShipmentCancelledPayload> integrationEvent, CancellationToken cancellationToken)
+    {
+        return PlanAsync(
+            sourceEventId: integrationEvent.EventId,
+            messageType: integrationEvent.EventType,
+            recipientIds: DistinctRecipients(integrationEvent.Payload.BuyerId, integrationEvent.Payload.SellerId),
+            type: NotificationType.ShipmentCancelled,
+            templateValues: new Dictionary<string, string>
+            {
+                ["shipmentId"] = integrationEvent.Payload.ShipmentId.ToString(),
+                ["orderId"] = integrationEvent.Payload.OrderId.ToString(),
+                ["buyerId"] = integrationEvent.Payload.BuyerId.ToString(),
+                ["sellerId"] = integrationEvent.Payload.SellerId.ToString(),
+                ["cancellationReason"] = integrationEvent.Payload.CancellationReason,
+                ["cancelledAt"] = integrationEvent.Payload.CancelledAt.ToString("O")
+            },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task PlanAsync(Guid sourceEventId, string messageType, IReadOnlyCollection<Guid> recipientIds, NotificationType type, IReadOnlyDictionary<string, string> templateValues, CancellationToken cancellationToken)
     {
         if (await _dbContext.InboxMessages.AnyAsync(x => x.MessageId == sourceEventId, cancellationToken))
         {
@@ -101,75 +188,83 @@ public sealed class NotificationPlanner
         }
 
         var policy = _policyCatalog.Get(type);
-
-        var contact = await _dbContext.RecipientContacts
-            .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.RecipientId == recipientId, cancellationToken);
-
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var notification = Notification.Create(
-            sourceEventId: sourceEventId,
-            recipientId: recipientId,
-            type: type,
-            priority: policy.Priority,
-            locale: contact?.Locale ?? "pt-BR");
-
-        if (contact is not null)
+        foreach (var recipientId in recipientIds.Where(id => id != Guid.Empty).Distinct())
         {
-            var preferences = await _dbContext.NotificationPreferences
+            var contact = await _dbContext.RecipientContacts
                 .AsNoTracking()
-                .Where(x => x.RecipientId == recipientId && x.NotificationType == type)
-                .ToListAsync(cancellationToken);
+                .SingleOrDefaultAsync(x => x.RecipientId == recipientId, cancellationToken);
 
-            var templates = await _dbContext.NotificationTemplates
-                .AsNoTracking()
-                .Where(x => x.Type == type && x.Locale == notification.Locale && x.IsActive)
-                .ToListAsync(cancellationToken);
+            var notification = Notification.Create(
+                sourceEventId: sourceEventId,
+                recipientId: recipientId,
+                type: type,
+                priority: policy.Priority,
+                locale: contact?.Locale ?? "pt-BR");
 
-            foreach (var channel in policy.DefaultChannels)
+            if (contact is not null)
             {
-                var destination = contact.ResolveDestination(channel);
-                if (string.IsNullOrWhiteSpace(destination))
-                {
-                    continue;
-                }
+                var preferences = await _dbContext.NotificationPreferences
+                    .AsNoTracking()
+                    .Where(x => x.RecipientId == recipientId && x.NotificationType == type)
+                    .ToListAsync(cancellationToken);
 
-                if (policy.CanUserOptOut)
+                var templates = await _dbContext.NotificationTemplates
+                    .AsNoTracking()
+                    .Where(x => x.Type == type && x.Locale == notification.Locale && x.IsActive)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var channel in policy.DefaultChannels)
                 {
-                    var preference = preferences.FirstOrDefault(x => x.Channel == channel);
-                    if (preference is { Enabled: false })
+                    var destination = contact.ResolveDestination(channel);
+                    if (string.IsNullOrWhiteSpace(destination))
                     {
                         continue;
                     }
+
+                    if (policy.CanUserOptOut)
+                    {
+                        var preference = preferences.FirstOrDefault(x => x.Channel == channel);
+                        if (preference is { Enabled: false })
+                        {
+                            continue;
+                        }
+                    }
+
+                    var template = templates
+                        .Where(x => x.Channel == channel)
+                        .OrderByDescending(x => x.Version)
+                        .FirstOrDefault();
+
+                    if (template is null)
+                    {
+                        continue;
+                    }
+
+                    var subject = template.SubjectTemplate is null ? null : _renderer.Render(template.SubjectTemplate, templateValues);
+                    var body = _renderer.Render(template.BodyTemplate, templateValues);
+
+                    notification.AddDelivery(channel, destination, template.Id, template.Version, subject, body, DateTimeOffset.UtcNow);
                 }
-
-                var template = templates
-                    .Where(x => x.Channel == channel)
-                    .OrderByDescending(x => x.Version)
-                    .FirstOrDefault();
-
-                if (template is null)
-                {
-                    continue;
-                }
-
-                var subject = template.SubjectTemplate is null ? null : _renderer.Render(template.SubjectTemplate, templateValues);
-                var body = _renderer.Render(template.BodyTemplate, templateValues);
-
-                notification.AddDelivery(channel, destination, template.Id, template.Version, subject, body, DateTimeOffset.UtcNow);
             }
+
+            if (notification.Deliveries.Count == 0)
+            {
+                notification.MarkSuppressed();
+            }
+
+            await _dbContext.Notifications.AddAsync(notification, cancellationToken);
         }
 
-        if (notification.Deliveries.Count == 0)
-        {
-            notification.MarkSuppressed();
-        }
-
-        await _dbContext.Notifications.AddAsync(notification, cancellationToken);
         await _dbContext.InboxMessages.AddAsync(new InboxMessage(sourceEventId, messageType), cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static IReadOnlyCollection<Guid> DistinctRecipients(params Guid[] recipientIds)
+    {
+        return recipientIds.Where(id => id != Guid.Empty).Distinct().ToArray();
     }
 
     private static IReadOnlyDictionary<string, string> CreateTemplateValues(TrackingStatusChangedIntegrationEvent source)

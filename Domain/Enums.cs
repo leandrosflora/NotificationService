@@ -2,13 +2,15 @@ namespace NotificationService.Domain;
 
 public enum NotificationType
 {
-    OrderConfirmed = 1,
-    ShipmentCreated = 2,
-    OutForDelivery = 3,
-    Delivered = 4,
-    DeliveryException = 5,
-    OrderCancelled = 6,
-    PaymentFailed = 7
+    OrderCreated = 1,
+    OrderConfirmed = 2,
+    ShipmentCreated = 3,
+    OutForDelivery = 4,
+    Delivered = 5,
+    DeliveryException = 6,
+    OrderCancelled = 7,
+    PaymentFailed = 8,
+    ShipmentCancelled = 9
 }
 
 public enum NotificationChannel
